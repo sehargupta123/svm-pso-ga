@@ -1,0 +1,5 @@
+method,runs,cv_acc_mean,cv_acc_std,test_acc_mean,trials_to_target_mean,trials_to_target_median,runs_reaching_target
+Grid search,1,0.9802,,0.9825,63.0,63.0,1
+Random search,10,0.9791,0.0012,0.9825,46.2,46.0,5
+PSO,10,0.98,0.0007,0.9825,38.1111,39.0,9
+GA,10,0.9793,0.0015,0.9781,24.2857,18.0,7
