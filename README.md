@@ -1,12 +1,11 @@
-# Tuning an SVM with PSO, GA and Simulated Annealing
+# SVM Hyperparameter Tuning using PSO and Genetic Algorithm
 
 *Optimization Techniques in Engineering (EEE1001), 2-person project.*
 
 We train a Support Vector Machine (SVM) **written from scratch** on the UCI Breast Cancer Wisconsin
-(Diagnostic) dataset, and we tune its two hyperparameters `C` and `gamma` with optimisation algorithms
-that we also wrote from scratch: **Particle Swarm Optimization (PSO)**, a **Genetic Algorithm (GA)** and
-**Simulated Annealing (SA)**. We compare them with the two classical baselines, **grid search** and
-**random search**, and with a modern one, **Bayesian optimisation (TPE)**.
+(Diagnostic) dataset. The main comparison is **Particle Swarm Optimization (PSO) vs a Genetic Algorithm (GA)**
+for tuning the two hyperparameters `C` and `gamma`; both are written from scratch. We compare them with
+baselines: **grid search**, **random search**, **Bayesian optimisation (TPE)** and **Simulated Annealing (SA)**.
 
 Fair comparison rule: **every method gets exactly 100 evaluations**. One evaluation = train the SVM with
 one `(C, gamma)` and measure its 5-fold stratified cross-validation (CV) score on the training data.
@@ -23,22 +22,22 @@ one `(C, gamma)` and measure its 5-fold stratified cross-validation (CV) score o
 
 | Method | best C | best gamma | CV accuracy | test accuracy | found at trial | repeated trials |
 |---|---|---|---|---|---|---|
-| Grid search | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* |
-| Random search | | | | | | |
 | PSO | | | | | | |
 | GA | | | | | | |
+| Grid search | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* |
+| Random search | | | | | | |
 | SA | | | | | | |
 
 **Many seeds (`step6_experiments.py`, N seeds = *(fill)*)**
 
 | Method | mean CV score | mean test acc | malignant recall | mean trials to target | runs reaching target |
 |---|---|---|---|---|---|
-| Grid search | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* / 1 |
-| Random search | | | | | / N |
 | PSO | | | | | / N |
 | GA | | | | | / N |
-| SA | | | | | / N |
+| Grid search | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* / 1 |
+| Random search | | | | | / N |
 | Bayesian (TPE) | | | | | / N |
+| SA | | | | | / N |
 
 **Significance (Mann-Whitney U on trials-to-target, `results/significance.csv`)**
 
@@ -195,10 +194,10 @@ scikit-learn: `RandomizedSearchCV`.
 
 | Method | trial at which the best accuracy was found (seed 0) | seeds that reached the target |
 |---|---|---|
-| Grid | *(fill)* | *(fill)* / 1 |
-| Random | *(fill)* | *(fill)* / N |
 | PSO | *(fill)* | *(fill)* / N |
 | GA | *(fill)* | *(fill)* / N |
+| Grid | *(fill)* | *(fill)* / 1 |
+| Random | *(fill)* | *(fill)* / N |
 | SA | *(fill)* | *(fill)* / N |
 
 "Target" = within 0.1 percentage points of the best CV score any method found. "Never reached" counts as 101 trials in the statistical tests.
@@ -260,13 +259,15 @@ with random numbers $r_1,r_2\in[0,1]$ (new for each particle and each dimension)
 * $c_2$ (social): pull toward the swarm's best.
 * Velocity is capped at 20 % of the range and positions are clipped to the box.
 
-### 6.3 Simulated Annealing (SA)
+### 6.3 Simulated Annealing (SA, extra baseline)
 Inspired by slowly cooling metal (Kirkpatrick et al. 1983). One walker:
 1. Propose $x'=x+\mathcal N(0,\,(0.15\cdot\text{range})^2)$.
 2. If $f(x')>f(x)$ move there. Otherwise move there anyway with probability $\exp\big((f(x')-f(x))/T\big)$.
 3. Cool: $T\leftarrow 0.95\,T$.
 
 Start temperature 0.02 (accuracy is on a 0-1 scale, so $T=0.02$ accepts a 1-percentage-point loss with probability $e^{-0.5}\approx0.6$ at the start, and almost never after about 60 steps). Exactly 100 evaluations; the best point ever visited is returned.
+
+**Why SA is here.** SA is an extra baseline, not a main method. It is the third metaheuristic in Unit 5 of the syllabus, next to GA and PSO. It is also a *single-point* search, unlike the population-based PSO and GA, so it tests whether a population is really needed on this problem. If SA does about as well as PSO, that supports the No Free Lunch argument that this landscape is easy (one large region of good settings), not that PSO is always best.
 
 ---
 
