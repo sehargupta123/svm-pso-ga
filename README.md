@@ -22,31 +22,36 @@ one `(C, gamma)` and measure its 5-fold stratified cross-validation (CV) score o
 
 | Method | best C | best gamma | CV accuracy | test accuracy | found at trial | repeated trials |
 |---|---|---|---|---|---|---|
-| PSO | | | | | | |
-| GA | | | | | | |
-| Grid search | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* |
-| Random search | | | | | | |
-| SA | | | | | | |
+| PSO | 59.170 | 0.00053 | 0.9802 | 0.9825 | 76 | 0 |
+| GA | 32.959 | 0.00098 | 0.9802 | 0.9825 | 23 | 0 |
+| Grid search | 21.544 | 0.00129 | 0.9802 | 0.9825 | 63 | 0 |
+| Random search | 6.879 | 0.00239 | 0.9780 | 0.9825 | 38 | 0 |
+| SA | 31.953 | 0.00078 | 0.9802 | 0.9825 | 38 | 1 |
 
-**Many seeds (`step6_experiments.py`, N seeds = *(fill)*)**
+(One seed only: "found at trial" varies a lot between seeds, e.g. PSO's 76 is an unlucky run. See section 9.)
+
+**Many seeds (`step6_experiments.py`, 30 seeds)**
 
 | Method | mean CV score | mean test acc | malignant recall | mean trials to target | runs reaching target |
 |---|---|---|---|---|---|
-| PSO | | | | | / N |
-| GA | | | | | / N |
-| Grid search | *(fill)* | *(fill)* | *(fill)* | *(fill)* | *(fill)* / 1 |
-| Random search | | | | | / N |
-| Bayesian (TPE) | | | | | / N |
-| SA | | | | | / N |
+| PSO | 0.9800 | 0.9813 | 0.9762 | 36.7 | 28 / 30 |
+| GA | 0.9796 | 0.9781 | 0.9762 | 37.6 | 22 / 30 |
+| Grid search | 0.9802 | 0.9825 | 0.9762 | 63.0 | 1 / 1 |
+| Random search | 0.9788 | 0.9792 | 0.9762 | 54.6 | 15 / 30 |
+| Bayesian (TPE) | 0.9802 | 0.9810 | 0.9762 | 41.5 | 30 / 30 |
+| SA | 0.9797 | 0.9813 | 0.9762 | 40.0 | 24 / 30 |
+
+(Mean trials to target counts only the runs that reached the target. Target CV score = 0.9792.)
 
 **Significance (Mann-Whitney U on trials-to-target, `results/significance.csv`)**
 
 | Comparison | p-value |
 |---|---|
-| PSO vs Random | *(fill)* |
-| GA vs Random | *(fill)* |
-| PSO vs GA | *(fill)* |
-| SA vs Random | *(fill)* |
+| PSO vs Random | 0.0001 (significant) |
+| GA vs Random | 0.0195 (significant) |
+| PSO vs GA | 0.394 (not significant) |
+| SA vs Random | 0.0065 (significant) |
+| Bayesian (TPE) vs Random | < 0.0001 (significant) |
 
 Plots are written to `figures/` (convergence, trials-to-target box plot, search-space map, Pareto fronts, sensitivity).
 
@@ -190,15 +195,15 @@ scikit-learn: `RandomizedSearchCV`.
 | Number of settings | 2 (points per axis, bounds) | 1-2 (budget, seed) | 5 (swarm size, iters, w, c1, c2) | 5-6 (pop size, crossover, mutation, elites, tournament) | 3 (start temp, cooling, step size) |
 | Main weakness | cost explodes with dimensions, fixed resolution | no learning | can converge early to a local optimum | needs population and tuning | single walker, sensitive to cooling schedule |
 
-### 4.4 This project's numbers (fill in from `results/summary.csv`)
+### 4.4 This project's numbers
 
 | Method | trial at which the best accuracy was found (seed 0) | seeds that reached the target |
 |---|---|---|
-| PSO | *(fill)* | *(fill)* / N |
-| GA | *(fill)* | *(fill)* / N |
-| Grid | *(fill)* | *(fill)* / 1 |
-| Random | *(fill)* | *(fill)* / N |
-| SA | *(fill)* | *(fill)* / N |
+| PSO | 76 | 28 / 30 |
+| GA | 23 | 22 / 30 |
+| Grid | 63 | 1 / 1 |
+| Random | 38 | 15 / 30 |
+| SA | 38 | 24 / 30 |
 
 "Target" = within 0.1 percentage points of the best CV score any method found. "Never reached" counts as 101 trials in the statistical tests.
 
@@ -347,19 +352,86 @@ The tie-break `score - 1e-6 * (average support vectors)` only decides between *e
 
 ---
 
-## 9. Limitations and future work
+## 9. Results
 
-* One data split (seed 42) and one set of CV folds. The test set has only 114 patients, so **one patient = 0.88 percentage points**; test accuracies of different methods are often identical.
-* Several methods reach the same best CV accuracy: this landscape is easy (a wide plateau of good settings), so differences are about *speed to get there*, not final accuracy.
-* The budget is only 100 evaluations; results could change with other budgets.
-* PSO and SA settings were not tuned per method (step 8 studies PSO and GA only).
+All numbers come from the log files in `results/` (`step5_log.txt` ... `step10_log.txt`): Breast Cancer Wisconsin dataset, accuracy scoring, 100 evaluations per run.
+
+### 9.1 Main result: PSO vs GA over 30 seeds (step 6)
+
+"Target" = a CV score of **0.9792**, i.e. within 0.1 percentage points of the best score any method found (0.9802).
+
+| Method | Runs that reached the target | Median trials (successful runs only) | p-value vs random search |
+|---|---|---|---|
+| **PSO** | **28 / 30** | 34.5 | 0.0001 |
+| **GA** | **22 / 30** | 31 | 0.0195 |
+| Grid search | 1 / 1 (at trial 63) | 63 | not applicable |
+| Random search | 15 / 30 | 59 | |
+| Bayesian (TPE) | 30 / 30 | 39 | < 0.0001 |
+| SA | 24 / 30 | 36.5 | 0.0065 |
+
+Two kinds of median appear in the result files, and they differ on purpose:
+* `summary.csv` takes the median **only over the runs that reached the target**. That is why random search shows 59.
+* `significance.csv` counts a run that **never reached the target as 101 trials**, so that failures count against a method in the Mann-Whitney test. With 15 of 30 random-search runs failing, its median there is 100.5. In the same way PSO shows 35.5, GA 42.5 and SA 48.5.
+
+What the statistics say:
+* PSO, GA, SA and TPE are **all significantly faster than random search** (Mann-Whitney U, two-sided, p = 0.0001, 0.0195, 0.0065 and < 0.0001).
+* **PSO vs GA is not significant (p = 0.394).** PSO was more *reliable* (28 vs 22 successful runs), while GA was slightly *faster when it succeeded* (median 31 vs 34.5 trials). With 30 seeds we cannot say that either one wins.
+* **Bayesian optimisation (TPE) was the most reliable method: 30 / 30.** As a modern baseline it beat both metaheuristics on reliability. That is an honest result worth stating: a method that learns a model of the score surface is hard to beat on a smooth 2-D problem.
+* Repeated trials are negligible: PSO 0.03 and SA 0.87 repeated points per run (GA 0 by design, random 0).
+
+### 9.2 Final models on the test set (step 5 and step 6)
+
+Every method ends with a model of about the same quality. The mean test accuracy over 30 seeds lies between **97.8 % and 98.25 %** (grid 98.25, PSO 98.13, SA 98.13, TPE 98.10, random 97.92, GA 97.81), and **every method's final model misses exactly 1 of the 42 malignant test cases on average (malignant recall 0.9762)**. One test patient is worth 0.88 percentage points, so these differences are one patient or less.
+Final accuracy therefore does **not** separate the methods; **speed and reliability** do.
+
+Step 5 (single seed 0, our own SVM) is used only for the test-set confusion matrix: all five methods give 41 malignant caught, 1 missed, 1 false alarm, 71 benign correct, test accuracy 0.9825. Its "found at trial" values (grid 63, random 38, PSO 76, GA 23, SA 38) come from one seed: PSO's 76 is just one unlucky run, not a typical value (its median over 30 seeds is 34.5).
+
+### 9.3 Other experiments
+
+* **Kernel search (step 9, GA over kernel, degree, C and gamma, 5 seeds).** A **linear kernel reaches 98.02 % CV accuracy (C about 0.03), the same as the best RBF model**, and the GA chose linear in 4 of 5 seeds (RBF once; polynomial never won, its best was 97.36 %). The data is nearly linearly separable.
+* **Multi-objective (step 10).** NSGA-II with only 300 evaluations produced an 11-point Pareto front that **dominates 7 of the 9 points** of the step 7 front (which was built from 1000 PSO and GA evaluations). Both reach 98.02 % accuracy at best, but the most accurate NSGA-II point uses 51.2 support vectors, while step 7 found 98.02 % with 33.
+* **Sensitivity (step 8, 10 seeds per setting).** The defaults ($w=0.7$, $c_1=c_2=1.5$, mutation 0.15) are reasonable but not optimal.
+
+| Setting | Runs reaching the target | Mean trials to target |
+|---|---|---|
+| PSO w = 0.4 | 7 / 10 | 34.4 |
+| PSO w = 0.7 (default) | 9 / 10 | 33.1 |
+| PSO w = 0.9 | 9 / 10 | 53.1 (slower) |
+| PSO c1 = c2 = 1.0 | 10 / 10 | 47.8 |
+| PSO c1 = c2 = 1.5 (default) | 9 / 10 | 33.1 |
+| PSO c1 = c2 = 2.0 | 10 / 10 | 35.4 |
+| GA mutation 0.05 | 6 / 10 (worst) | 32.7 |
+| GA mutation 0.15 (default) | 9 / 10 | 39.3 |
+| GA mutation 0.30 | 8 / 10 | 31.0 |
+
+---
+
+## 10. Discussion
+
+* **PSO vs GA.** On this problem they are statistically tied. PSO succeeded more often (28 vs 22 of 30); GA was a little quicker when it did succeed. One plausible reason for PSO's reliability is that its particles are pulled toward the best point found so far, so the swarm settles on the good region, while the GA relies more on random mutation to keep moving (step 8 fits this: the lowest mutation rate, 0.05, was the worst GA setting with 6 / 10). We did not test this explanation directly.
+* **Guided search beats random search.** Random search reached the target in only 15 of 30 runs and is significantly slower than all four guided methods. Using the results of earlier trials helps.
+* **Why every method ends up equally good.** The score surface has one large region of good settings (a wide band in $(\log C,\log\gamma)$), and step 9 shows that even a **linear** kernel is as good as RBF. When the problem is that easy, any reasonable search finds a good point sooner or later, so the final accuracy is the same for everyone. This agrees with the **No Free Lunch theorem**: no algorithm wins on all problems, and on an easy landscape the differences between algorithms mostly disappear. We must therefore not conclude that PSO (or GA) is "the best optimiser"; we only learned how they behave on this kind of problem.
+* **Single-point vs population search.** SA keeps only one point, yet reached the target in 24 of 30 runs, close to GA (22) and PSO (28). A population helps reliability a little but is not essential here.
+* **TPE.** The Bayesian baseline was the most reliable (30 / 30), although not the fastest. Learning a model of the score surface pays off on a smooth, low-dimensional problem like this one.
+* **Multi-objective view.** If a small model matters, tune accuracy and support vectors together. NSGA-II found better trade-offs than the step 7 collection of single-objective runs, with about a third of the evaluations. Its most accurate point is a bigger model, though: the simplest top-accuracy model (98.02 % with 33 support vectors) came from step 7.
+* **Settings.** The defaults are not optimal (for example c1 = c2 = 1.0 or 2.0 reached the target in 10 / 10 runs, w = 0.9 was much slower), but no setting changes the final accuracy.
+
+---
+
+## 11. Limitations and future work
+
+* **One small dataset** (569 patients, nearly linearly separable) and one data split (seed 42). Conclusions about PSO vs GA may not carry over to harder problems (Sonar and Ionosphere are built in but were not used for the reported results).
+* **Small test set:** 114 patients, so **one patient = 0.88 percentage points**. The final test accuracies of all methods differ by about one patient, which is too small to rank them.
+* **Fixed CV split:** every setting is scored on the same 5 folds (seed 0), so the best settings partly fit those folds. Repeated or nested CV would be fairer (`N_REPEATS` exists but was not used for the reported results).
+* **Metaheuristic settings were not tuned.** PSO and GA use fixed defaults (step 8 shows they are not optimal), SA settings were not studied, and the budget is only 100 evaluations.
+* **Only 30 seeds**, so PSO vs GA (p = 0.394) might separate with more runs. The target level (0.9792) was defined from the best score found, which is convenient but arbitrary.
 * The SMO solver is the *simplified* version (random second point); it is less exact than the QP solver and is only used for checks.
 * Only the RBF kernel is implemented in our own SVM; other kernels use scikit-learn (step 9).
 * Future work: nested CV, more datasets and benchmark functions, more seeds, successive halving, adaptive PSO/GA parameters, GP-based Bayesian optimisation.
 
 ---
 
-## 10. References
+## 12. References
 
 1. C. Cortes and V. Vapnik, "Support-vector networks", *Machine Learning* 20(3), 273-297, 1995.
 2. J. Kennedy and R. Eberhart, "Particle swarm optimization", *Proc. IEEE International Conference on Neural Networks*, 1942-1948, 1995.
