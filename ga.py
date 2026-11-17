@@ -6,6 +6,8 @@
 #   2. Selection: pick parents with "tournaments" (best of 3 random individuals)
 #   3. Crossover: mix two parents into a child
 #   4. Mutation:  add small random noise to some children
+#   5. No repeats: if a child is a point we already scored, nudge it with Gaussian noise
+#                  (up to 20 tries) so every one of the evaluations is a NEW point.
 # It stops after exactly max_evals scored guesses, so it gets the same budget as the others.
 # We MAXIMISE the score (accuracy).
 
@@ -13,15 +15,34 @@ import numpy as np
 
 
 def ga(score_fn, bounds, pop_size=10, max_evals=100, crossover_rate=0.8,
-       mutation_rate=0.15, n_elite=2, seed=0):
+       mutation_rate=0.15, n_elite=2, seed=0, max_nudges=20):
     rng = np.random.default_rng(seed)
     low, high = bounds[:, 0], bounds[:, 1]
     dim = len(bounds)
-    sigma = 0.1 * (high - low)              # size of a mutation: 10% of the range
+    sigma = 0.1 * (high - low)              # size of a mutation (and of a nudge): 10% of the range
+
+    scored = set()                          # every point already scored (rounded to 4 decimals)
+
+    def key(p):
+        return tuple(np.round(p, 4))
+
+    def make_unique(child):
+        """Return a point not scored before: the child itself, or a nudged copy of it."""
+        for _ in range(max_nudges):
+            if key(child) not in scored:
+                return child
+            child = np.clip(child + rng.normal(0, sigma), low, high)
+        while key(child) in scored:         # extremely unlikely: fall back to a fresh random point
+            child = rng.uniform(low, high)
+        return child
+
+    def score(p):
+        scored.add(key(p))
+        return score_fn(*p)
 
     # 1. Random starting population, and score it.
-    pop = rng.uniform(low, high, size=(pop_size, dim))
-    scores = np.array([score_fn(*ind) for ind in pop])
+    pop = np.array([make_unique(rng.uniform(low, high)) for _ in range(pop_size)])
+    scores = np.array([score(ind) for ind in pop])
     evals = pop_size
 
     def tournament():
@@ -43,9 +64,9 @@ def ga(score_fn, bounds, pop_size=10, max_evals=100, crossover_rate=0.8,
                 child = parent1.copy()
             if rng.random() < mutation_rate:
                 child = child + rng.normal(0, sigma)     # Gaussian mutation
-            child = np.clip(child, low, high)
+            child = make_unique(np.clip(child, low, high))
             new_pop.append(child)
-            new_scores.append(score_fn(*child))
+            new_scores.append(score(child))
             evals += 1
 
         # If the budget ran out mid-generation, fill the empty slots with the best old individuals.
