@@ -1,5 +1,8 @@
 numpy
+scipy
 scikit-learn
 cvxopt
 matplotlib
 pandas
+optuna
+pymoo
