@@ -1,0 +1,6 @@
+comparison,n_a,n_b,median_trials_a,median_trials_b,U,p_value,significant_at_0.05
+PSO vs Random search,30,30,35.5,100.5,185.5,7.869924844075348e-05,True
+GA vs Random search,30,30,42.5,100.5,296.0,0.019478047992056696,True
+PSO vs GA,30,30,35.5,42.5,392.0,0.39403560451950537,False
+SA vs Random search,30,30,48.5,100.5,269.5,0.0065237562805189955,True
+Bayesian (TPE) vs Random search,30,30,39.0,100.5,168.5,2.81773478163279e-05,True

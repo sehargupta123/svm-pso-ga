@@ -1,0 +1,10 @@
+group,setting,cv_acc_mean,cv_acc_std,trials_to_target_mean,runs_reaching_target,seeds
+PSO inertia w,w=0.4,0.9796,0.0011,34.4286,7,10
+PSO inertia w,w=0.7,0.98,0.0007,33.1111,9,10
+PSO inertia w,w=0.9,0.98,0.0007,53.1111,9,10
+PSO c1 = c2,c1=c2=1.0,0.9802,0.0,47.8,10,10
+PSO c1 = c2,c1=c2=1.5,0.98,0.0007,33.1111,9,10
+PSO c1 = c2,c1=c2=2.0,0.9802,0.0,35.4,10,10
+GA mutation rate,mutation=0.05,0.9793,0.0011,32.6667,6,10
+GA mutation rate,mutation=0.15,0.98,0.0007,39.3333,9,10
+GA mutation rate,mutation=0.3,0.9798,0.0009,31.0,8,10

@@ -1,5 +1,7 @@
-method,runs,cv_acc_mean,cv_acc_std,test_acc_mean,trials_to_target_mean,trials_to_target_median,runs_reaching_target
-Grid search,1,0.9802,,0.9825,63.0,63.0,1
-Random search,10,0.9791,0.0012,0.9825,46.2,46.0,5
-PSO,10,0.98,0.0007,0.9825,38.1111,39.0,9
-GA,10,0.9793,0.0015,0.9781,24.2857,18.0,7
+method,runs,cv_score_mean,cv_score_std,cv_base_score_mean,test_acc_mean,malignant_recall_mean,malignant_missed_mean,false_alarms_mean,repeated_trials_mean,trials_to_target_mean,trials_to_target_median,runs_reaching_target
+Grid search,1,0.9802,,0.9802,0.9825,0.9762,1.0,1.0,0.0,63.0,63.0,1
+Random search,30,0.9788,0.0016,0.9788,0.9792,0.9762,1.0,1.3667,0.0,54.6,59.0,15
+PSO,30,0.98,0.0006,0.9801,0.9813,0.9762,1.0,1.1333,0.0333,36.7143,34.5,28
+GA,30,0.9796,0.001,0.9796,0.9781,0.9762,1.0,1.5,0.0,37.5909,31.0,22
+SA,30,0.9797,0.0009,0.9798,0.9813,0.9762,1.0,1.1333,0.8667,40.0,36.5,24
+Bayesian (TPE),30,0.9802,0.0,0.9802,0.981,0.9762,1.0,1.1667,0.0,41.5,39.0,30
