@@ -1,0 +1,424 @@
+<title>SVM Tuning Decision Flow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a single vertical decision path in six phase bands, then a grid of small loop charts, one per tuner. */
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --ink: #17202e;
+  --muted: #5b6577;
+  --line: #c9d0db;
+  --rule: #e3e7ee;
+  --accent: #2459b3;
+  --accent-soft: #e5edf9;
+  --decide: #a5560f;
+  --decide-soft: #fbefe2;
+  --yes: #1d7a4f;
+  --no: #b03a3a;
+  --pso: #13875b;
+  --ga: #b07a00;
+  --grid: #2a6fd6;
+  --random: #d45a1f;
+  --tpe: #c02a63;
+  --sa: #7a4fc4;
+  --f-display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141c; --surface: #171e29; --ink: #e8ecf2; --muted: #9aa5b6; --line: #354153; --rule: #232c39;
+    --accent: #7aa7ff; --accent-soft: #1b2a44; --decide: #f0a35e; --decide-soft: #33261a; --yes: #57c98f; --no: #ee7d7d;
+    --pso: #4fd59b; --ga: #f2c14e; --grid: #6fa5ff; --random: #ff8a52; --tpe: #ff6e9f; --sa: #b391f2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --surface: #171e29; --ink: #e8ecf2; --muted: #9aa5b6; --line: #354153; --rule: #232c39;
+  --accent: #7aa7ff; --accent-soft: #1b2a44; --decide: #f0a35e; --decide-soft: #33261a; --yes: #57c98f; --no: #ee7d7d;
+  --pso: #4fd59b; --ga: #f2c14e; --grid: #6fa5ff; --random: #ff8a52; --tpe: #ff6e9f; --sa: #b391f2;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.wrap { max-width: 980px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 4.4vw, 40px); font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 24px; font-weight: 700; }
+.lede { color: var(--muted); max-width: 66ch; margin: 10px 0 0; }
+.meta { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.04em; color: var(--muted); text-transform: uppercase; }
+header { display: grid; gap: 6px; margin-bottom: 22px; }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 18px 0 26px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 18px; height: 14px; border-radius: 4px; border: 2px solid var(--line); background: var(--surface); }
+.sw.start { border-radius: 999px; border-color: var(--accent); background: var(--accent-soft); }
+.sw.dec { transform: rotate(45deg) scale(0.8); border-color: var(--decide); background: var(--decide-soft); border-radius: 2px; width: 14px; }
+
+/* phases */
+.phase { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 20px; padding-block: 18px; border-top: 1px solid var(--rule); }
+.phase-label { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); align-self: start; }
+.phase-label .meta { display: block; margin-bottom: 4px; }
+.phase-label h3 { font-size: 17px; font-weight: 700; }
+.flow { display: grid; gap: 0; min-width: 0; }
+
+/* nodes */
+.node {
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 0; min-width: 0;
+}
+.node > summary {
+  list-style: none; cursor: pointer; padding: 14px 16px 14px 16px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px; align-items: start; border-radius: 10px;
+}
+.node > summary::-webkit-details-marker { display: none; }
+.node > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.node .ico { width: 26px; height: 26px; margin-top: 1px; display: grid; place-items: center; }
+.node .ico i { display: block; width: 20px; height: 15px; border: 2px solid var(--line); border-radius: 4px; }
+.node.start .ico i { border-radius: 999px; border-color: var(--accent); background: var(--accent-soft); }
+.node.end .ico i { border-radius: 999px; border-color: var(--yes); background: color-mix(in srgb, var(--yes) 16%, transparent); }
+.node.decision { border-color: color-mix(in srgb, var(--decide) 55%, var(--line)); }
+.node.decision .ico i { width: 15px; height: 15px; transform: rotate(45deg); border-color: var(--decide); background: var(--decide-soft); border-radius: 2px; }
+.node h4 { font-family: var(--f-display); font-size: 16px; font-weight: 700; margin: 0 0 2px; }
+.node p { margin: 0; color: var(--muted); }
+.node .more { font-family: var(--f-mono); font-size: 11.5px; color: var(--accent); white-space: nowrap; margin-top: 3px; }
+.node[open] .more::after { content: " \2212"; }
+.node:not([open]) .more::after { content: " +"; }
+.node .detail { padding: 0 16px 16px 54px; display: grid; gap: 8px; }
+.node .detail dl { margin: 0; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 12px; font-size: 14px; }
+.node .detail dt { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.node .detail dd { margin: 0; }
+.num { font-variant-numeric: tabular-nums; font-family: var(--f-mono); font-size: 0.92em; }
+
+/* branches */
+.branches { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 14px 54px; }
+.branches.inline { padding: 10px 0 0; }
+.br { display: inline-flex; align-items: baseline; gap: 6px; font-size: 13px; border-radius: 6px; padding: 4px 9px; border: 1px solid var(--rule); background: var(--bg); }
+.br b { font-family: var(--f-mono); font-size: 11.5px; letter-spacing: 0.05em; }
+.br.yes b { color: var(--yes); } .br.no b { color: var(--no); }
+.br.taken { border-color: color-mix(in srgb, var(--yes) 45%, var(--rule)); }
+.br.loop { border-style: dashed; }
+
+/* arrows */
+.arrow { height: 26px; display: grid; place-items: center; }
+.arrow::before { content: ""; width: 2px; height: 16px; background: var(--line); }
+.arrow::after { content: ""; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--line); margin-top: -2px; }
+.arrow { grid-template-rows: 16px 8px; }
+
+.aside { margin: 10px 0 0 54px; font-size: 13.5px; color: var(--muted); border-left: 3px solid var(--rule); padding: 2px 0 2px 12px; }
+
+/* tuner loops */
+.loops-head { margin: 48px 0 6px; display: grid; gap: 6px; }
+.loops { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; margin-top: 18px; }
+.loop { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; display: grid; gap: 12px; align-content: start; }
+.loop header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 0; }
+.loop h3 { font-size: 18px; }
+.loop .role { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.loop .key { height: 4px; border-radius: 2px; background: var(--c); }
+.stepwrap { position: relative; padding-right: 30px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; position: relative; counter-reset: s; }
+.steps li { position: relative; padding: 7px 10px; font-size: 13.5px; border: 1px solid var(--rule); border-radius: 7px; background: var(--bg); }
+.steps li + li { margin-top: 16px; }
+.steps li + li::before { content: ""; position: absolute; left: 50%; top: -15px; width: 2px; height: 10px; background: var(--line); transform: translateX(-1px); }
+.steps li + li::after { content: ""; position: absolute; left: 50%; top: -6px; transform: translateX(-6px); border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid var(--line); }
+.steps li.once { border-style: dashed; }
+.steps li.dec { border-color: color-mix(in srgb, var(--decide) 45%, var(--rule)); background: var(--decide-soft); }
+.stepwrap .back { position: absolute; right: 8px; width: 14px; border: 2px solid var(--c); border-left: 0; border-radius: 0 8px 8px 0; }
+.stepwrap .back::after { content: ""; position: absolute; left: -7px; top: -6px; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-right: 7px solid var(--c); }
+.loop .stat { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 10px; }
+.loop .stat strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.loopnote { font-size: 13px; color: var(--muted); margin: 0; }
+
+footer { margin-top: 40px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 14px; }
+
+@media (max-width: 720px) {
+  .phase { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .phase-label { position: static; }
+  .node .detail, .branches:not(.inline) { padding-left: 16px; }
+  .node .detail dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .node .detail dd { margin-bottom: 6px; }
+  .aside { margin-left: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .node > summary { transition: background-color .15s ease; }
+  .node > summary:hover { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="meta">EEE1001 Optimization Techniques in Engineering &middot; PEC Chandigarh</span>
+    <h1>SVM Tuning Decision Flow</h1>
+    <p class="lede">Every choice the project made, in the order it was made, with the reason and the evidence behind it. Select any step to see the detail. Below the main flow, six small charts show how each tuner decides where to search next.</p>
+  </header>
+
+  <div class="legend" aria-label="Legend">
+    <span><i class="sw start"></i> start or end</span>
+    <span><i class="sw"></i> action</span>
+    <span><i class="sw dec"></i> decision</span>
+    <span><b style="color:var(--yes);font-family:var(--f-mono);font-size:12px">YES / NO</b> outcomes; dashed = loop back</span>
+  </div>
+
+  <!-- ===================== A ===================== -->
+  <section class="phase">
+    <div class="phase-label"><span class="meta">Phase 1</span><h3>Frame the problem</h3></div>
+    <div class="flow">
+      <details class="node start">
+        <summary><span class="ico"><i></i></span><div><h4>An RBF SVM needs C and &gamma;, and no formula gives them</h4><p>Accuracy depends on both settings, and every guess costs a full training run.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Why it's hard</dt><dd>Cross-validated accuracy moves in jumps of one patient, has no gradient and has broad flat regions, so calculus-based methods do not apply.</dd>
+          <dt>Question</dt><dd>With a fixed budget of evaluations, which search method finds good settings fastest and most reliably?</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Use the Breast Cancer Wisconsin (Diagnostic) data</h4><p><span class="num">569</span> patients, <span class="num">30</span> measurements each, malignant or benign.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Why</dt><dd>Small, clean, no missing values, and built into scikit-learn, so every run is reproducible on a laptop. It is also the dataset of the reference GitHub repo, which gives a baseline.</dd>
+          <dt>Alternative</dt><dd>Harder UCI sets such as Sonar or Ionosphere. Kept as an option in <span class="num">data.py</span> for future work.</dd>
+        </dl></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===================== B ===================== -->
+  <section class="phase">
+    <div class="phase-label"><span class="meta">Phase 2</span><h3>Prepare the data</h3></div>
+    <div class="flow">
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Relabel the classes as &minus;1 and +1</h4><p>Malignant = &minus;1, benign = +1.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl><dt>Why</dt><dd>The SVM's constraints use y&middot;f(x) &ge; 1, which only means "correct and confident" when labels are &plusmn;1.</dd></dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Hold out a test set: 80/20, stratified, fixed seed</h4><p><span class="num">455</span> patients for tuning, <span class="num">114</span> touched only once at the very end.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl><dt>Why</dt><dd>Tuning on the test set would make its score optimistic. Stratifying keeps the malignant share equal in both parts; the fixed seed makes results repeat exactly.</dd></dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node decision">
+        <summary><span class="ico"><i></i></span><div><h4>Scale the features?</h4><p>Area is in the hundreds, smoothness is about 0.1.</p><div class="branches inline"><span class="br yes taken"><b>YES</b> standardise, fitted inside each CV fold</span><span class="br no"><b>NO</b> distances dominated by a few features</span></div></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Evidence</dt><dd>A default SVM scored <span class="num">93.0%</span> unscaled and <span class="num">98.2%</span> scaled (Step 2).</dd>
+          <dt>Detail</dt><dd>The scaler is fitted on the training part of each fold only, so no information leaks from the validation part. The reference repo did not scale at all.</dd>
+        </dl></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===================== C ===================== -->
+  <section class="phase">
+    <div class="phase-label"><span class="meta">Phase 3</span><h3>Build the model</h3></div>
+    <div class="flow">
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Write the SVM ourselves: solve the dual quadratic programme</h4><p>RBF kernel, cvxopt QP solver, optional SMO solver.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Why</dt><dd>Training an SVM is a convex QP with Kuhn-Tucker optimality conditions, which ties the project to Units 1 and 2 of the syllabus. A library call would hide all of it.</dd>
+          <dt>Alternative</dt><dd>scikit-learn's SVC as a black box, as the reference repo does. Used only to validate and to speed up long experiments.</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node decision">
+        <summary><span class="ico"><i></i></span><div><h4>Does it match scikit-learn and pass the KKT check?</h4><p>Compared at five (C, &gamma;) settings on a validation split.</p><div class="branches inline"><span class="br yes taken"><b>YES</b> identical accuracy in 5 of 5, KKT 98.2&ndash;100%</span><span class="br no loop"><b>NO</b> fix tolerances or bias, test again</span></div></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>What happened</dt><dd>The loop back was used once: fixed tolerances under-reported optimality at large C (KKT pass rate <span class="num">95.4%</span> at C = 100). Making them relative to C brought every setting to <span class="num">98&ndash;100%</span>.</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Use the RBF kernel</h4><p>It gives the tuners a real two-dimensional search over C and &gamma;.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Why</dt><dd>The standard default kernel; flexible from nearly linear (small &gamma;) to very curved (large &gamma;).</dd>
+          <dt>Later check</dt><dd>Step 9 found a linear kernel matches RBF at <span class="num">98.02%</span>, so the data are nearly linearly separable. A useful limitation to report.</dd>
+        </dl></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===================== D ===================== -->
+  <section class="phase">
+    <div class="phase-label"><span class="meta">Phase 4</span><h3>Define the search</h3></div>
+    <div class="flow">
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Score a guess by 5-fold cross-validated accuracy</h4><p>One evaluation trains the SVM five times.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Why</dt><dd>Accuracy on the training data would reward memorising. CV estimates accuracy on unseen patients.</dd>
+          <dt>Tie-break</dt><dd>Subtract 10<sup>&minus;6</sup> per support vector, at most <span class="num">0.00036</span>, smaller than one patient (<span class="num">0.0022</span>). It only picks the simpler model among exact ties.</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Search log<sub>10</sub>C in [&minus;2, 3] and log<sub>10</sub>&gamma; in [&minus;4, 1]</h4><p>C from 0.01 to 1000, &gamma; from 0.0001 to 10.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Why log</dt><dd>Both settings matter by order of magnitude, so equal steps in log space mean equal effects.</dd>
+          <dt>Why these limits</dt><dd>At &gamma; = 10<sup>&minus;4</sup> every patient looks alike (kernel &asymp; <span class="num">0.996</span>); at &gamma; = 10 every patient is unique and accuracy falls to <span class="num">62.6%</span>. C = 0.01 barely fits; by C = 1000 accuracy is flat.</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node decision">
+        <summary><span class="ico"><i></i></span><div><h4>Is the best point stuck on an edge where accuracy is still rising?</h4><p>Checked on a 60 &times; 60 accuracy map.</p><div class="branches inline"><span class="br no taken"><b>NO</b> keep the box</span><span class="br yes loop"><b>YES</b> widen the box, search again</span></div></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Evidence</dt><dd>Three corners sit at the <span class="num">62.6%</span> floor and the fourth is already flat; the best settings found lie well inside. Only about <span class="num">7%</span> of the box reaches 97.5%, so where you search still matters.</dd>
+        </dl></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===================== E ===================== -->
+  <section class="phase">
+    <div class="phase-label"><span class="meta">Phase 5</span><h3>Choose and run the tuners</h3></div>
+    <div class="flow">
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Main methods: PSO and GA. Baselines: grid, random, TPE, SA</h4><p>PSO and GA are written from scratch; TPE comes from Optuna.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Why</dt><dd>PSO and GA are the Unit 5 metaheuristics in the title. Grid and random search are the classical baselines; TPE is the modern one used in industry; SA is the third Unit 5 method and a single-point search.</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Make the comparison fair</h4><p>100 evaluations each, the same folds, independent random seeds.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>GA fix</dt><dd>The first GA re-scored repeated points and wasted about <span class="num">49</span> of its 100 evaluations. It now nudges any repeat to a new point.</dd>
+          <dt>Seeds</dt><dd>Each method gets its own random stream, so runs are independent, which the significance test assumes.</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node">
+        <summary><span class="ico"><i></i></span><div><h4>Repeat each stochastic method 30 times</h4><p><span class="num">151</span> runs and <span class="num">15,100</span> evaluations in total.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl><dt>Why</dt><dd>One run can be lucky or unlucky. In the single seed-0 run, PSO needed 76 trials; over 30 runs its median was 34.5.</dd></dl></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===================== F ===================== -->
+  <section class="phase">
+    <div class="phase-label"><span class="meta">Phase 6</span><h3>Measure and conclude</h3></div>
+    <div class="flow">
+      <details class="node decision">
+        <summary><span class="ico"><i></i></span><div><h4>Does final accuracy separate the methods?</h4><p>Every method ends near 98% test accuracy.</p><div class="branches inline"><span class="br no taken"><b>NO</b> compare speed and reliability instead</span><span class="br yes"><b>YES</b> rank by accuracy</span></div></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Evidence</dt><dd>Mean test accuracy <span class="num">97.8&ndash;98.25%</span>; every final model misses the same 1 of 42 cancers.</dd>
+          <dt>New measures</dt><dd>Trials to reach <span class="num">97.92%</span> CV accuracy (the top level, 446 of 455 patients), and the share of the 30 runs that ever get there.</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node decision">
+        <summary><span class="ico"><i></i></span><div><h4>Are the speed differences real?</h4><p>Mann-Whitney U test on trials to target.</p><div class="branches inline"><span class="br yes taken"><b>YES</b> PSO, GA, SA, TPE beat random (p &le; .02)</span><span class="br no taken"><b>NO</b> PSO vs GA (p = .394)</span></div></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Why this test</dt><dd>Trial counts are not normally distributed, so a rank-based test is used. Runs that never reach the target count as 101 trials.</dd>
+        </dl></div>
+      </details>
+      <div class="arrow" aria-hidden="true"></div>
+      <details class="node end" open>
+        <summary><span class="ico"><i></i></span><div><h4>Conclusion: metaheuristics save evaluations, but neither PSO nor GA wins outright</h4><p>PSO reached the top level in <span class="num">28/30</span> runs, the GA in <span class="num">22/30</span>, random search in <span class="num">15/30</span>.</p></div><span class="more">detail</span></summary>
+        <div class="detail"><dl>
+          <dt>Speed</dt><dd>Median trials when successful: GA <span class="num">31</span>, PSO <span class="num">34.5</span>, SA <span class="num">36.5</span>, TPE <span class="num">39</span>, random <span class="num">59</span>, grid <span class="num">63</span>.</dd>
+          <dt>Most reliable</dt><dd>TPE reached the top level in all 30 runs.</dd>
+          <dt>Why it's not universal</dt><dd>The search surface has one broad good region, so the ranking reflects this problem. That is the No Free Lunch theorem in practice.</dd>
+        </dl></div>
+      </details>
+      <p class="aside">Extensions run after the main study: a sensitivity check of PSO and GA settings, a GA search over kernel types, and an NSGA-II search for the accuracy versus model size trade-off.</p>
+    </div>
+  </section>
+
+  <!-- ===================== tuner loops ===================== -->
+  <div class="loops-head">
+    <span class="meta">Inside each tuner</span>
+    <h2>How each method picks its next trial</h2>
+    <p class="lede">Every method repeats its loop until 100 evaluations are used. Dashed boxes run once at the start; the coloured arrow on the right is the loop back. Results are from the 30-run experiment.</p>
+  </div>
+
+  <div class="loops">
+    <article class="loop" style="--c: var(--pso)">
+      <header><h3>PSO</h3><span class="role">main method</span></header><div class="key"></div>
+      <div class="stepwrap"><ol class="steps">
+        <li class="once">Place 10 particles at random, with random velocities</li>
+        <li>New velocity = keep going + pull to own best + pull to swarm best</li>
+        <li>Move each particle and keep it inside the box</li>
+        <li>Score all 10 positions</li>
+        <li class="dec">Better than own best or swarm best? Update the memory</li></ol><span class="back" aria-hidden="true"></span></div>
+      <div class="stat"><span>reached <strong>28/30</strong></span><span>median <strong>34.5</strong> trials</span></div>
+    </article>
+
+    <article class="loop" style="--c: var(--ga)">
+      <header><h3>Genetic algorithm</h3><span class="role">main method</span></header><div class="key"></div>
+      <div class="stepwrap"><ol class="steps">
+        <li class="once">Score a random population of 10</li>
+        <li>Keep the best 2 unchanged</li>
+        <li>Pick 2 parents: best of 3 random individuals, twice</li>
+        <li>Blend them (80%), maybe mutate (15%)</li>
+        <li class="dec">Already tried? Nudge to a new point, then score</li></ol><span class="back" aria-hidden="true"></span></div>
+      <div class="stat"><span>reached <strong>22/30</strong></span><span>median <strong>31</strong> trials</span></div>
+    </article>
+
+    <article class="loop" style="--c: var(--tpe)">
+      <header><h3>Bayesian (TPE)</h3><span class="role">baseline</span></header><div class="key"></div>
+      <div class="stepwrap"><ol class="steps">
+        <li class="once">Score a few random points to start</li>
+        <li>Split past trials into a good group and a bad group</li>
+        <li>Model where good trials cluster and where bad ones do</li>
+        <li class="dec">Choose the point where good most outweighs bad</li>
+        <li>Score it and add it to the history</li></ol><span class="back" aria-hidden="true"></span></div>
+      <div class="stat"><span>reached <strong>30/30</strong></span><span>median <strong>39</strong> trials</span></div>
+    </article>
+
+    <article class="loop" style="--c: var(--sa)">
+      <header><h3>Simulated annealing</h3><span class="role">baseline</span></header><div class="key"></div>
+      <div class="stepwrap"><ol class="steps">
+        <li class="once">Start at one random point, temperature 0.02</li>
+        <li>Propose a random nearby point</li>
+        <li>Score it</li>
+        <li class="dec">Better? Accept. Worse? Accept with a chance that shrinks as it cools</li>
+        <li>Cool the temperature by 5%</li></ol><span class="back" aria-hidden="true"></span></div>
+      <div class="stat"><span>reached <strong>24/30</strong></span><span>median <strong>36.5</strong> trials</span></div>
+    </article>
+
+    <article class="loop" style="--c: var(--random)">
+      <header><h3>Random search</h3><span class="role">baseline</span></header><div class="key"></div>
+      <div class="stepwrap"><ol class="steps">
+        <li>Draw a point uniformly in the log box</li>
+        <li>Score it</li>
+        <li class="dec">Best so far? Remember it</li></ol><span class="back" aria-hidden="true"></span></div>
+      <p class="loopnote">Never uses what it has learned, so it cannot refine around a good find.</p>
+      <div class="stat"><span>reached <strong>15/30</strong></span><span>median <strong>59</strong> trials</span></div>
+    </article>
+
+    <article class="loop" style="--c: var(--grid)">
+      <header><h3>Grid search</h3><span class="role">baseline</span></header><div class="key"></div>
+      <div class="stepwrap"><ol class="steps">
+        <li class="once">Lay out a 10 &times; 10 grid of log-spaced points</li>
+        <li>Take the next point, row by row from small C</li>
+        <li>Score it</li>
+        <li class="dec">Best so far? Remember it</li></ol><span class="back" aria-hidden="true"></span></div>
+      <p class="loopnote">Deterministic: one run only. Its order decides when it reaches the good region.</p>
+      <div class="stat"><span>reached <strong>1/1</strong></span><span>found at trial <strong>63</strong></span></div>
+    </article>
+  </div>
+
+  <footer>Sehar Gupta (23104054) and Dushyant Singh Taggar (23104077), under the guidance of Dr. Sandeep Kaur, HoD, Electrical Engineering Department, PEC. Numbers are from the project's final 30-seed experiment.</footer>
+</div>
+<script>
+// Draw each loop-back arrow from the middle of the last step up to the middle of the first repeated step.
+function placeLoops() {
+  document.querySelectorAll(".stepwrap").forEach(function (w) {
+    var items = Array.prototype.slice.call(w.querySelectorAll("li"));
+    var first = items.find(function (li) { return !li.classList.contains("once"); });
+    var last = items[items.length - 1];
+    var back = w.querySelector(".back");
+    if (!first || !last || !back) return;
+    var top = first.offsetTop + first.offsetHeight / 2;
+    var bottom = last.offsetTop + last.offsetHeight / 2;
+    back.style.top = top + "px";
+    back.style.height = Math.max(bottom - top, 10) + "px";
+  });
+}
+placeLoops();
+window.addEventListener("resize", placeLoops);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeLoops);
+</script>
