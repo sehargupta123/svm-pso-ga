@@ -196,13 +196,15 @@ for label, method, C, gamma in pairs:
     else:
         ax.plot(it, rg, color=CONTRAST_COLORS[label], lw=1.4, ls="--", label=pair_label(label, C, gamma))
 ax.axhline(1e-3, color="k", ls=":", lw=1)
-ax.text(1.2, 1.3e-3, "convergence threshold $10^{-3}$", fontsize=8, va="bottom")
+x_right = max(results[l]["r"]["history"]["iteration"][-1] for l, *_ in pairs)
+ax.text(x_right, 1.3e-3, "convergence threshold $10^{-3}$", fontsize=8, ha="right", va="bottom",
+        bbox=dict(facecolor="white", edgecolor="none", alpha=0.85, pad=1.5), zorder=5)
 ax.set_xscale("log")
 ax.set_yscale("log")
 ax.set_xlabel("SMO iteration (pair updates, log scale)")
 ax.set_ylabel("Relative duality gap $(P - D)\\,/\\,|P|$")
 ax.grid(alpha=0.25, which="both")
-ax.legend(fontsize=7, frameon=False, loc="lower left")
+ax.legend(fontsize=7, frameon=False, bbox_to_anchor=(1.02, 1), loc="upper left")
 save(fig, "inner_duality_gap.png")
 
 # ---- 3. dual objective over two multipliers (the others fixed at the SMO solution) ----
