@@ -318,6 +318,8 @@ Start temperature 0.02 (accuracy is on a 0-1 scale, so $T=0.02$ accepts a 1-perc
 | `step8_sensitivity.py` | Sensitivity of PSO (w, c1, c2) and GA (mutation rate) |
 | `step9_kernel_search.py` | GA also chooses the kernel (linear / poly / rbf) and degree |
 | `step10_nsga2.py` | NSGA-II multi-objective search with pymoo |
+| `objectives.py` | The objective functions as explicit NumPy code (kernel, $Q$, dual $D$, primal $P$, duality gap, CV accuracy $F$) and SMO with a logged history |
+| `step11_objective_convergence.py` | Convergence plots and contour plots for the inner (SVM training) and outer (tuning) problems (`QUICK`) |
 | `CHANGES.md` | List of problems found and revisions made |
 | `results/`, `figures/` | Output tables and plots |
 
@@ -430,6 +432,35 @@ Step 5 (single seed 0, our own SVM) is used only for the test-set confusion matr
 * Future work: nested CV, more datasets and benchmark functions, more seeds, successive halving, adaptive PSO/GA parameters, GP-based Bayesian optimisation.
 
 ---
+
+## Objective functions and convergence (Step 11)
+
+Tuning is a **bilevel** problem. `objectives.py` writes both levels as plain NumPy functions (each docstring states the formula and its symbols).
+
+**Inner problem (train one SVM, $C$ and $\gamma$ fixed).** With $K_{ij}=\exp(-\gamma\lVert x_i-x_j\rVert^2)$ and $Q_{ij}=y_iy_jK_{ij}$:
+
+* Dual, **maximised**: $D(\alpha)=\sum_i\alpha_i-\tfrac12\alpha^\top Q\alpha$, subject to $0\le\alpha_i\le C$ and $\sum_i\alpha_iy_i=0$.
+* Primal, **minimised**: $P(\alpha,b)=\tfrac12\alpha^\top Q\alpha+C\sum_i\max\bigl(0,\,1-y_if(x_i)\bigr)$, with $f(x_i)=\sum_j\alpha_jy_jK_{ij}+b$. This is $\tfrac12\lVert w\rVert^2+C\sum\xi_i$ with $w=\sum_j\alpha_jy_j\phi(x_j)$ substituted and each $\xi_i$ set to its smallest feasible value.
+* Duality gap: $P-D\ge 0$ (weak duality), $\to 0$ at the optimum (strong duality); relative gap $(P-D)/(|P|+10^{-12})$. In the plots $P$ uses the best $b$ for the current $\alpha$, so $P\ge D$ always.
+
+**Outer problem (choose $\theta=(\log_{10}C,\log_{10}\gamma)\in[-2,3]\times[-4,1]$), maximised:**
+
+$$F(\theta)=\frac1K\sum_{k=1}^{K}\frac1{|V_k|}\sum_{i\in V_k}\mathbf 1\bigl[\operatorname{sign} f^{(k)}_\theta(x_i)=y_i\bigr],\qquad \max_\theta F\bigl(\theta,\alpha^*(\theta)\bigr),\ \ \alpha^*(\theta)=\arg\max_\alpha D_\theta(\alpha).$$
+
+$F$ is a step function of $\theta$ (it counts patients), so gradient-free tuners are used.
+
+`smo_trace()` is Platt's full SMO (error cache, $|E_i-E_j|$ second choice). Every update moves two $\alpha$ along the equality constraint and clips to the box, so $\alpha$ is feasible after every update. It logs about 200 points per run and flags convergence (relative gap $<10^{-3}$); its final $D$ is compared with the cvxopt solution.
+
+**Run:** `python step11_objective_convergence.py` (set `QUICK = True` at the top for a check in under a minute). It reruns each tuner once with seed 0 and writes `results/inner_convergence.csv`, `outer_trials.csv`, `cv_surface.csv`. The contour grid uses scikit-learn's SVC for speed (Step 3 showed it matches our SVM).
+
+| Figure | Shows |
+|---|---|
+| `inner_primal_dual_grid.png` | $P$ falling and $D$ rising to the same value, one panel per $(C,\gamma)$ pair (the y-axis is zoomed; $P$ starts near $C\cdot n$, off the top) |
+| `inner_duality_gap.png` | Relative gap vs SMO iteration (log-log), all pairs |
+| `dual_slice_contour.png` | $D$ over two margin-SV multipliers (others fixed), the box $[0,C]^2$, the equality line, and the constrained optimum |
+| `outer_convergence.png` | Left: best-so-far $F$ per method (y-axis starts at 0.93). Right: $F$ of every trial. Dotted line = 0.9792 |
+| `outer_contour_all.png` | $F$ over $(\log C,\log\gamma)$ with each method's best point and the grid maximum (star) |
+| `outer_contour_paths.png` | Each method's 100 trials in evaluation order, with start and best |
 
 ## 12. References
 
